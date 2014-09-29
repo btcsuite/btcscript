@@ -6,7 +6,6 @@ package btcscript
 
 import (
 	"bytes"
-	"crypto/ecdsa"
 	"crypto/rand"
 	"encoding/binary"
 	"errors"
@@ -1097,7 +1096,7 @@ func MultiSigScript(pubkeys []*btcutil.AddressPubKey, nrequired int) ([]byte, er
 // serialized in either a compressed or uncompressed format based on
 // compress. This format must match the same format used to generate
 // the payment address, or the script validation will fail.
-func SignatureScript(tx *btcwire.MsgTx, idx int, subscript []byte, hashType byte, privKey *ecdsa.PrivateKey, compress bool) ([]byte, error) {
+func SignatureScript(tx *btcwire.MsgTx, idx int, subscript []byte, hashType byte, privKey *btcec.PrivateKey, compress bool) ([]byte, error) {
 	sig, err := signTxOutput(tx, idx, subscript, hashType, privKey)
 	if err != nil {
 		return nil, err
@@ -1115,28 +1114,28 @@ func SignatureScript(tx *btcwire.MsgTx, idx int, subscript []byte, hashType byte
 }
 
 func signTxOutput(tx *btcwire.MsgTx, idx int, subScript []byte, hashType byte,
-	key *ecdsa.PrivateKey) ([]byte, error) {
+	key *btcec.PrivateKey) ([]byte, error) {
 
 	return signTxOutputCustomReader(rand.Reader, tx, idx, subScript,
 		hashType, key)
 }
 
 func signTxOutputCustomReader(reader io.Reader, tx *btcwire.MsgTx, idx int,
-	subScript []byte, hashType byte, key *ecdsa.PrivateKey) ([]byte, error) {
+	subScript []byte, hashType byte, key *btcec.PrivateKey) ([]byte, error) {
 	parsedScript, err := parseScript(subScript)
 	if err != nil {
 		return nil, fmt.Errorf("cannot parse output script: %v", err)
 	}
 	hash := calcScriptHash(parsedScript, hashType, tx, idx)
-	r, s, err := ecdsa.Sign(reader, key, hash)
+	signature, err := key.Sign(hash)
 	if err != nil {
 		return nil, fmt.Errorf("cannot sign tx input: %s", err)
 	}
 
-	return append((&btcec.Signature{R: r, S: s}).Serialize(), hashType), nil
+	return append(signature.Serialize(), hashType), nil
 }
 
-func p2pkSignatureScript(tx *btcwire.MsgTx, idx int, subScript []byte, hashType byte, privKey *ecdsa.PrivateKey) ([]byte, error) {
+func p2pkSignatureScript(tx *btcwire.MsgTx, idx int, subScript []byte, hashType byte, privKey *btcec.PrivateKey) ([]byte, error) {
 	sig, err := signTxOutput(tx, idx, subScript, hashType, privKey)
 	if err != nil {
 		return nil, err
@@ -1380,9 +1379,7 @@ sigLoop:
 			// If it matches we put it in the map. We only
 			// can take one signature per public key so if we
 			// already have one, we can throw this away.
-			if ecdsa.Verify(pubKey.ToECDSA(), hash,
-				pSig.R, pSig.S) {
-
+			if pSig.Verify(hash, pubKey) {
 				aStr := addr.EncodeAddress()
 				if _, ok := addrToSig[aStr]; !ok {
 					addrToSig[aStr] = sig
@@ -1420,14 +1417,14 @@ sigLoop:
 // KeyDB is an interface type provided to SignTxOutput, it encapsulates
 // any user state required to get the private keys for an address.
 type KeyDB interface {
-	GetKey(btcutil.Address) (*ecdsa.PrivateKey, bool, error)
+	GetKey(btcutil.Address) (*btcec.PrivateKey, bool, error)
 }
 
 // KeyClosure implements ScriptDB with a closure
-type KeyClosure func(btcutil.Address) (*ecdsa.PrivateKey, bool, error)
+type KeyClosure func(btcutil.Address) (*btcec.PrivateKey, bool, error)
 
 // GetKey implements KeyDB by returning the result of calling the closure
-func (kc KeyClosure) GetKey(address btcutil.Address) (*ecdsa.PrivateKey,
+func (kc KeyClosure) GetKey(address btcutil.Address) (*btcec.PrivateKey,
 	bool, error) {
 	return kc(address)
 }
