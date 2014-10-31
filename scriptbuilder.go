@@ -19,8 +19,9 @@ const (
 )
 
 // ScriptBuilder provides a facility for building custom scripts.  It allows
-// you to push opcodes, ints, and data while respecting canonical encoding.  It
-// does not ensure the script will execute correctly.
+// you to push opcodes, ints, and data while respecting canonical encoding,
+// but you can also push raw bytes if you want.  It does not ensure the script
+// will execute correctly.
 //
 // For example, the following would build a 2-of-3 multisig script for usage in
 // a pay-to-script-hash (although in this situation MultiSigScript() would be a
@@ -111,6 +112,13 @@ func (b *ScriptBuilder) AddUint64(val uint64) *ScriptBuilder {
 	}
 
 	return b.AddData(fromInt(new(big.Int).SetUint64(val)))
+}
+
+// AddRaw appends the given byte array, unmodified, to the end
+// of the script.
+func (b *ScriptBuilder) AddRaw(data []byte) *ScriptBuilder {
+	b.script = append(b.script, data...)
+	return b
 }
 
 // Reset resets the script so it has no content.

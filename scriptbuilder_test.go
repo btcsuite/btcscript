@@ -248,3 +248,24 @@ func TestScriptBuilderAddData(t *testing.T) {
 		}
 	}
 }
+
+// TestScriptBuilderAddRaw tests that pushing raw bytes to a script via the
+// ScriptBuilder API works as expected.
+func TestScriptBuilderAddRaw(t *testing.T) {
+	builder := btcscript.NewScriptBuilder()
+
+	// Check that AddRaw works when we have an empty script.
+	d1 := bytes.Repeat([]byte{0x01}, 5)
+	builder.AddRaw(d1)
+	if !bytes.Equal(builder.Script(), d1) {
+		t.Errorf("Unexpected script after AddRaw. got: %x, want: %x", builder.Script(), d1)
+	}
+
+	// Check that AddRaw works when we have a non-empty script.
+	d2 := bytes.Repeat([]byte{0x02}, 5)
+	builder.AddRaw(d2)
+	expected := append(d1, d2...)
+	if !bytes.Equal(builder.Script(), expected) {
+		t.Errorf("Unexpected script after AddRaw. got: %x, want: %x", builder.Script(), expected)
+	}
+}
